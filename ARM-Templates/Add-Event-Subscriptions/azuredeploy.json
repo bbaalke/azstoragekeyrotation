@@ -57,8 +57,7 @@
         }
     },
     "variables": {
-		"eventSubscriptionName": "[concat('storagekey-rotation-fnapp','-',eventSubscription)]"
-		
+		"eventSubscriptionName": "[concat('storagekey-rotation-fnapp','-','eventSubscription')]"
     },
     "resources": [
         {
@@ -81,7 +80,7 @@
                                 "input": {
                                     "type": "Microsoft.Storage/storageAccounts/providers/roleAssignments",
                                     "apiVersion": "2018-09-01-preview",
-                                    "name": "[concat(parameters('storageAccountNames'),'-',[copyIndex('storageAccountLoop')], '/Microsoft.Authorization/', guid(concat(parameters('storageAccountNames'),'-',[copyIndex('storageAccountLoop')],reference(resourceId('Microsoft.Web/sites', storagekey-rotation-fnapp),'2019-08-01', 'Full').identity.principalId)))]",
+                                    "name": "[concat(parameters('storageAccountNames'), [copyIndex('storageAccountLoop')], '/Microsoft.Authorization/', guid(concat(parameters('storageAccountNames'), [copyIndex('storageAccountLoop')],reference(resourceId('Microsoft.Web/sites', 'storagekey-rotation-fnapp'),'2019-08-01', 'Full').identity.principalId)))]",
                                     "dependsOn": [
                                     ],
                                     "properties": {
