@@ -69,7 +69,7 @@ function RotateSecret($keyVaultName,$secretName){
     #Add new access key to Key Vault
     $newSecretVersionTags = @{}
     $newSecretVersionTags.ValidityPeriodDays = $validityPeriodDays
-    $newSecretVersionTags.CredentialId=$alternateCredentialId # check key is swapping key1 and key2
+    $newSecretVersionTags.CredentialId=$alternateCredentialId
     $newSecretVersionTags.ProviderAddress = $providerAddress
     $newSecretVersionTags.SecretType = $secretType
 
