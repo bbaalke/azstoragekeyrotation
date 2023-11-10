@@ -1,6 +1,6 @@
 param($eventGridEvent, $TriggerMetadata)
 
-function RegenerateKey($keyId, $providerAddress){
+function RegenerateKey($keyId, $providerAddress, $tagType){
     Write-Host "Regenerating key. Id: $keyId Resource Id: $providerAddress"
     
     $storageAccountName = ($providerAddress -split '/')[8]
@@ -8,15 +8,22 @@ function RegenerateKey($keyId, $providerAddress){
     
     #Regenerate key 
     New-AzStorageAccountKey -ResourceGroupName $resourceGroupName -Name $storageAccountName -KeyName $keyId
-    $newKeyValue = (Get-AzStorageAccountKey -ResourceGroupName $resourceGroupName -AccountName $storageAccountName|where KeyName -eq $keyId).value
+    if ($tagType -eq "ConnectionString")
+    {
+        $newKeyValue = (Get-AzStorageAccount -ResourceGroupName $resourceGroupName -Name $storageAccountName).PrimaryConnectionString
+    }
+    else
+    {
+        $newKeyValue = (Get-AzStorageAccountKey -ResourceGroupName $resourceGroupName -AccountName $storageAccountName|where KeyName -eq $keyId).value
+    }
 
     return $newKeyValue
 }
 
-function AddSecretToKeyVault($keyVAultName,$secretName,$newAccessKeyValue,$exprityDate,$tags){
+function AddSecretToKeyVault($keyVaultName,$secretName,$newAccessKeyValue,$exprityDate,$tags){
     
     $secretvalue = ConvertTo-SecureString "$newAccessKeyValue" -AsPlainText -Force
-    Set-AzKeyVaultSecret -VaultName $keyVAultName -Name $secretName -SecretValue $secretvalue -Tag $tags -Expires $expiryDate
+    Set-AzKeyVaultSecret -VaultName $keyVaultName -Name $secretName -SecretValue $secretvalue -Tag $tags -Expires $expiryDate
 
 }
 
@@ -34,37 +41,40 @@ function GetAlternateCredentialId($keyId){
     }
 }
 
-function RoatateSecret($keyVaultName,$secretName){
+function RotateSecret($keyVaultName,$secretName){
     #Retrieve Secret
-    $secret = (Get-AzKeyVaultSecret -VaultName $keyVAultName -Name $secretName)
+    $secret = (Get-AzKeyVaultSecret -VaultName $keyVaultName -Name $secretName)
     Write-Host "Secret Retrieved"
     
     #Retrieve Secret Info
     $validityPeriodDays = $secret.Tags["ValidityPeriodDays"]
-    $credentialId=  $secret.Tags["CredentialId"]
+    $credentialId =  $secret.Tags["CredentialId"]
     $providerAddress = $secret.Tags["ProviderAddress"]
+    $secretType = $secret.Tags["SecretType"]
     
     Write-Host "Secret Info Retrieved"
     Write-Host "Validity Period: $validityPeriodDays"
     Write-Host "Credential Id: $credentialId"
     Write-Host "Provider Address: $providerAddress"
+    Write-Host "Secret Type: $secretType"
 
     #Get Credential Id to rotate - alternate credential
     $alternateCredentialId = GetAlternateCredentialId $credentialId
     Write-Host "Alternate credential id: $alternateCredentialId"
 
     #Regenerate alternate access key in provider
-    $newAccessKeyValue = (RegenerateKey $alternateCredentialId $providerAddress)[-1]
+    $newAccessKeyValue = (RegenerateKey $alternateCredentialId $providerAddress $secretType)[-1]
     Write-Host "Access key regenerated. Access Key Id: $alternateCredentialId Resource Id: $providerAddress"
 
     #Add new access key to Key Vault
     $newSecretVersionTags = @{}
     $newSecretVersionTags.ValidityPeriodDays = $validityPeriodDays
-    $newSecretVersionTags.CredentialId=$alternateCredentialId
+    $newSecretVersionTags.CredentialId=$alternateCredentialId # check key is swapping key1 and key2
     $newSecretVersionTags.ProviderAddress = $providerAddress
+    $newSecretVersionTags.SecretType = $secretType
 
     $expiryDate = (Get-Date).AddDays([int]$validityPeriodDays).ToUniversalTime()
-    AddSecretToKeyVault $keyVAultName $secretName $newAccessKeyValue $expiryDate $newSecretVersionTags
+    AddSecretToKeyVault $keyVaultName $secretName $newAccessKeyValue $expiryDate $newSecretVersionTags
 
     Write-Host "New access key added to Key Vault. Secret Name: $secretName"
 }
@@ -74,11 +84,11 @@ $eventGridEvent | ConvertTo-Json | Write-Host
 
 $secretName = $eventGridEvent.subject
 $keyVaultName = $eventGridEvent.data.VaultName
-Write-Host "Key Vault Name: $keyVAultName"
+Write-Host "Key Vault Name: $keyVaultName"
 Write-Host "Secret Name: $secretName"
 
 #Rotate secret
 Write-Host "Rotation started."
-RoatateSecret $keyVAultName $secretName
+RotateSecret $keyVaultName $secretName
 Write-Host "Secret Rotated Successfully"
 
