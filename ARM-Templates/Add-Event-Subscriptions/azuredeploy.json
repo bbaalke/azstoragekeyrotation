@@ -4,21 +4,21 @@
     "parameters": {
         "storageAccountRG": {
             "defaultValue": "[resourceGroup().name]",
-            "type": "String",
+            "type": "string",
             "metadata": {
                 "description": "The name of the resource group where storage accounts are deployed."
             }
         },
         "storageAccountNames": {
             "defaultValue": ["placeholderStorageAccount1", "placeholderStorageAccount2"],
-            "type": "Array",
+            "type": "array",
             "metadata": {
                 "description": "The names of the storage accounts with keys to rotate that are deployed to the resource group above."
             }
         },
         "keyVaultRG": {
             "defaultValue": "[resourceGroup().name]",
-            "type": "String",
+            "type": "string",
             "metadata": {
                 "description": "The name of the resource group where the key vaults are deployed."
             }
@@ -28,22 +28,22 @@
                 {"placeholderKeyVault1": ["placeholderkey1", "placeholderkey2"]},
                 {"placeholderKeyVault2": ["placeholderkey3", "placeholderkey4"]}
             ],
-            "type": "Array",
+            "type": "array",
             "properties": {
                 "KeyVaultObject": {
-                    "type": "Object",
+                    "type": "object",
                     "metadata": {
                         "description": "The names of the key vaults where key is stored that are deployed to the resource group above."
                     },
                     "properties": {
                         "keyVaultName": {
-                            "type": "String",
+                            "type": "string",
                             "metadata": {
                                 "description": "The names of the key vaults where key is stored that are deployed to the resource group above."
                             }
                         },
                         "secretName": {
-                            "type": "Array",
+                            "type": "array",
                             "metadata": {
                                 "description": "The names of the secrets where storage account keys are stored."
                             }
@@ -57,7 +57,7 @@
         }
     },
     "variables": {
-		"eventSubscriptionName": "[concat(storagekey-rotation-fnapp,'-',eventSubscription)]"
+		"eventSubscriptionName": "[concat('storagekey-rotation-fnapp','-',eventSubscription)]"
 		
     },
     "resources": [
@@ -86,7 +86,7 @@
                                     ],
                                     "properties": {
                                         "roleDefinitionId": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', '81a9662b-bebf-436f-a333-f67b29880f12')]",
-                                        "principalId": "[reference(resourceId('Microsoft.Web/sites', storagekey-rotation-fnapp),'2019-08-01', 'Full').identity.principalId]"
+                                        "principalId": "[reference(resourceId('Microsoft.Web/sites', 'storagekey-rotation-fnapp'),'2019-08-01', 'Full').identity.principalId]"
                                     }
                                 }
                             }
@@ -96,12 +96,15 @@
             }
         },
         {
-            "name": "kv-event-subscription",
+            "name": "kv-event-subscription-and-grant-access",
             "type": "Microsoft.Resources/deployments",
             "apiVersion": "2019-10-01",
             "subscriptionId": "[subscription().subscriptionId]",
             "resourceGroup": "[parameters('keyVaultRG')]",
-            "dependsOn": [],
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', 'storagekey-rotation-fnapp')]",
+                "[concat(resourceId('Microsoft.Web/sites', 'storagekey-rotation-fnapp'),'/sourcecontrols/web')]"
+            ],
             "properties": {
                 "mode": "Incremental",
                 "template": {
@@ -110,31 +113,57 @@
                     "resources": [
                         {
                             "copy": {
-                                "name": "eventSubscriptionLoop",
+                                "name": "keyVaultAccessPoliciesLoop",
+                                "count": "[length(parameters('keyVaultObjects'))]",
+                                "input": {
+                                    "type": "Microsoft.KeyVault/vaults/accessPolicies",
+                                    "name": "[concat(parameters('keyVaultObjects')[copyIndex('add')].keyVaultName, '/add')]",
+                                    "apiVersion": "2019-09-01",
+                                    "properties": {
+                                        "accessPolicies": [
+                                            {
+                                                "tenantId": "[subscription().tenantId]",
+                                                "objectId": "[reference(resourceId('Microsoft.Web/sites', 'storagekey-rotation-fnapp'),'2019-08-01', 'Full').identity.principalId]",
+                                                "permissions": {
+                                                    "secrets": [
+                                                        "Get",
+                                                        "List",
+                                                        "Set"
+                                                    ]
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "copy": {
+                                "name": "keyVaultEventSubscriptionLoop",
                                 "count": "[length(parameters('keyVaultObjects'))]",
                                 "input": {
                                     "type": "Microsoft.KeyVault/vaults/providers/eventSubscriptions",
                                     "apiVersion": "2020-01-01-preview",
-                                    "name": "[concat([copyIndex('eventSubscriptionLoop')],'/Microsoft.EventGrid/',variables('eventSubscriptionName'))]",
+                                    "name": "[concat([copyIndex('keyVaultNameLoop')].keyVaultName,'/Microsoft.EventGrid/',variables('eventSubscriptionName'))]",
                                     "location": "[resourceGroup().location]",
                                     "dependsOn": [
                                     ],
                                     "properties": {
                                         "copy": {
-                                            "name": "eventSubscriptionFilterLoop",
-                                            "count": "[length(parameters('keyVaultObjects')[copyIndex('eventSubscriptionLoop')].secretName)]",
+                                            "name": "secretNameFilterLoop",
+                                            "count": "[length(parameters('keyVaultObjects')[copyIndex('keyVaultNameLoop')].secretName)]",
                                             "input": {
                                                 "destination": {
                                                     "endpointType": "AzureFunction",
                                                     "properties": {
                                                         "maxEventsPerBatch": 1,
                                                         "preferredBatchSizeInKilobytes": 64,
-                                                        "resourceId": "[concat(resourceId('Microsoft.Web/sites', storagekey-rotation-fnapp),'/functions/AKVStorageRotation')]"
+                                                        "resourceId": "[concat(resourceId('Microsoft.Web/sites', 'storagekey-rotation-fnapp'),'/functions/AKVStorageRotation')]"
                                                     }
                                                 },
                                                 "filter": {
-                                                    "subjectBeginsWith": "[parameters('keyVaultObjects')[copyIndex('eventSubscriptionLoop')].secretName[copyIndex('eventSubscriptionFilterLoop')]]",
-                                                    "subjectEndsWith": "[parameters('keyVaultObjects')[copyIndex('eventSubscriptionLoop')].secretName[copyIndex('eventSubscriptionFilterLoop')]]",
+                                                    "subjectBeginsWith": "[parameters('keyVaultObjects')[copyIndex('keyVaultNameLoop')].secretName[copyIndex('secretNameFilterLoop')]]",
+                                                    "subjectEndsWith": "[parameters('keyVaultObjects')[copyIndex('keyVaultNameLoop')].secretName[copyIndex('secretNameFilterLoop')]]",
                                                     "includedEventTypes": ["Microsoft.KeyVault.SecretNearExpiry"]
                                                 }
                                             }
