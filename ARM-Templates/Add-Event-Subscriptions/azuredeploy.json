@@ -57,7 +57,7 @@
         }
     },
     "variables": {
-		"eventSubscriptionName": "[concat('phil-storagekey-rotation-fnapp','-','eventSubscription')]"
+		"eventSubscriptionName": "[concat('general-storagekey-rotation-fnapp','-','eventSubscription')]"
     },
     "resources": [
         {
@@ -85,7 +85,7 @@
                                     ],
                                     "properties": {
                                         "roleDefinitionId": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', '81a9662b-bebf-436f-a333-f67b29880f12')]",
-                                        "principalId": "[reference(resourceId('Microsoft.Web/sites', 'phil-storagekey-rotation-fnapp'),'2019-08-01', 'Full').identity.principalId]"
+                                        "principalId": "[reference(resourceId('Microsoft.Web/sites', 'general-storagekey-rotation-fnapp'),'2019-08-01', 'Full').identity.principalId]"
                                     }
                                 }
                             }
@@ -101,8 +101,8 @@
             "subscriptionId": "[subscription().subscriptionId]",
             "resourceGroup": "[parameters('keyVaultRG')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Web/sites', 'phil-storagekey-rotation-fnapp')]",
-                "[concat(resourceId('Microsoft.Web/sites', 'phil-storagekey-rotation-fnapp'),'/sourcecontrols/web')]"
+                "[resourceId('Microsoft.Web/sites', 'general-storagekey-rotation-fnapp')]",
+                "[concat(resourceId('Microsoft.Web/sites', 'general-storagekey-rotation-fnapp'),'/sourcecontrols/web')]"
             ],
             "properties": {
                 "mode": "Incremental",
@@ -122,7 +122,7 @@
                                         "accessPolicies": [
                                             {
                                                 "tenantId": "[subscription().tenantId]",
-                                                "objectId": "[reference(resourceId('Microsoft.Web/sites', 'phil-storagekey-rotation-fnapp'),'2019-08-01', 'Full').identity.principalId]",
+                                                "objectId": "[reference(resourceId('Microsoft.Web/sites', 'general-storagekey-rotation-fnapp'),'2019-08-01', 'Full').identity.principalId]",
                                                 "permissions": {
                                                     "secrets": [
                                                         "Get",
@@ -157,7 +157,7 @@
                                                     "properties": {
                                                         "maxEventsPerBatch": 1,
                                                         "preferredBatchSizeInKilobytes": 64,
-                                                        "resourceId": "[concat(resourceId('Microsoft.Web/sites', 'phil-storagekey-rotation-fnapp'),'/functions/AKVStorageRotation')]"
+                                                        "resourceId": "[concat(resourceId('Microsoft.Web/sites', 'general-storagekey-rotation-fnapp'),'/functions/AKVStorageRotation')]"
                                                     }
                                                 },
                                                 "filter": {

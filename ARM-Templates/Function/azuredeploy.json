@@ -13,7 +13,7 @@
 			}
 		},
         "functionAppName": {
-            "defaultValue": "phil-storagekey-rotation-fnapp",
+            "defaultValue": "general-storagekey-rotation-fnapp",
             "type": "string",
             "metadata": {
                 "description": "The name of the function app that you wish to create."
@@ -28,8 +28,8 @@
         }
     },
     "variables": {
-        "functionStorageAccountName": "[concat(uniquestring('phil-storagekey-rotation-fnapp'), 'fnappstrg')]",
-        "eventSubscriptionName": "[concat('phil-storagekey-rotation-fnapp','-','eventSubscription')]",
+        "functionStorageAccountName": "[concat(uniquestring('general-storagekey-rotation-fnapp'), 'fnappstrg')]",
+        "eventSubscriptionName": "[concat('general-storagekey-rotation-fnapp','-','eventSubscription')]",
         "appServiceSKU":"[if(equals(parameters('appServicePlanType'),'Consumption Plan'),'Y1','P1V2')]"
     },
     "resources": [
@@ -59,7 +59,7 @@
         {
             "type": "Microsoft.Web/sites",
             "apiVersion": "2018-11-01",
-            "name": "phil-storagekey-rotation-fnapp",
+            "name": "general-storagekey-rotation-fnapp",
             "location": "[resourceGroup().location]",
             "dependsOn": [
                 "[resourceId('Microsoft.Web/serverfarms', concat(resourceGroup().name, '-rotation-fnapp-plan'))]",
@@ -92,7 +92,7 @@
                         },
                         {
                             "name": "WEBSITE_CONTENTSHARE",
-                            "value": "[toLower('phil-storagekey-rotation-fnapp')]"
+                            "value": "[toLower('general-storagekey-rotation-fnapp')]"
                         },
                         {
                             "name": "WEBSITE_NODE_DEFAULT_VERSION",
@@ -100,7 +100,7 @@
                         },
                         {
                             "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
-                            "value": "[reference(resourceId('microsoft.insights/components', 'phil-storagekey-rotation-fnapp'), '2018-05-01-preview').InstrumentationKey]"
+                            "value": "[reference(resourceId('microsoft.insights/components', 'general-storagekey-rotation-fnapp'), '2018-05-01-preview').InstrumentationKey]"
                         }
                     ]
                 }
@@ -111,7 +111,7 @@
                     "apiVersion": "2018-11-01",
                     "name": "web",
                     "dependsOn": [
-                        "[resourceId('Microsoft.Web/Sites', 'phil-storagekey-rotation-fnapp')]"
+                        "[resourceId('Microsoft.Web/Sites', 'general-storagekey-rotation-fnapp')]"
                     ],
                     "properties": {
                         "RepoUrl": "[parameters('repoURL')]",
@@ -124,13 +124,13 @@
         {
             "type": "microsoft.insights/components",
             "apiVersion": "2018-05-01-preview",
-            "name": "phil-storagekey-rotation-fnapp",
+            "name": "general-storagekey-rotation-fnapp",
             "location": "[resourceGroup().location]",
             "tags": {
-                "[concat('hidden-link:', resourceId('Microsoft.Web/sites', 'phil-storagekey-rotation-fnapp'))]": "Resource"
+                "[concat('hidden-link:', resourceId('Microsoft.Web/sites', 'general-storagekey-rotation-fnapp'))]": "Resource"
             },
             "properties": {
-                "ApplicationId": "phil-storagekey-rotation-fnapp",
+                "ApplicationId": "general-storagekey-rotation-fnapp",
                 "Request_Source": "IbizaWebAppExtensionCreate"
             }
         }
