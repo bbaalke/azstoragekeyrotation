@@ -2,13 +2,6 @@
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
-        "storageAccountRG": {
-            "defaultValue": "[resourceGroup().name]",
-            "type": "string",
-            "metadata": {
-                "description": "The name of the resource group where storage accounts are deployed."
-            }
-        },
         "storageAccountNames": {
             "defaultValue": ["placeholderStorageAccount1", "placeholderStorageAccount2"],
             "type": "array",
@@ -16,41 +9,20 @@
                 "description": "The names of the storage accounts with keys to rotate that are deployed to the resource group above."
             }
         },
-        "keyVaultRG": {
-            "defaultValue": "[resourceGroup().name]",
-            "type": "string",
+        "keyVaultsForAccessPolicies": {
+            "defaultValue": ["placeholderKeyVault1", "placeholderKeyVault2"],
+            "type": "array",
             "metadata": {
-                "description": "The name of the resource group where the key vaults are deployed."
+                "description": "The names of the key vaults to add the function app's identity to for access policies."
             }
         },
-        "keyVaultObjects": {
-            "defaultValue": [
-                {"placeholderKeyVault1": ["placeholderkey1", "placeholderkey2"]},
-                {"placeholderKeyVault2": ["placeholderkey3", "placeholderkey4"]}
-            ],
+        "keyVaultSecretObjects": {
             "type": "array",
-            "properties": {
-                "KeyVaultObject": {
-                    "type": "object",
-                    "metadata": {
-                        "description": "The names of the key vaults where key is stored that are deployed to the resource group above."
-                    },
-                    "properties": {
-                        "keyVaultName": {
-                            "type": "string",
-                            "metadata": {
-                                "description": "The names of the key vaults where key is stored that are deployed to the resource group above."
-                            }
-                        },
-                        "secretName": {
-                            "type": "array",
-                            "metadata": {
-                                "description": "The names of the secrets where storage account keys are stored."
-                            }
-                        }
-                    }
-                }
-            },
+            "defaultValue": [
+                {"keyVaultName": "placeholderKeyVault1", "secretName": "placeholderkey1"},
+                {"keyVaultName": "placeholderKeyVault1", "secretName": "placeholderkey2"},
+                {"keyVaultName": "placeholderKeyVault2", "secretName": "placeholderkey3"}
+            ],
             "metadata": {
                 "description": "An array of keyvault objects with corresponding secret key names in that key vault, these are deployed to the resource group above."
             }
@@ -61,48 +33,11 @@
     },
     "resources": [
         {
-            "name": "storage-grant-access",
-            "type": "Microsoft.Resources/deployments",
-            "apiVersion": "2019-10-01",
-            "subscriptionId": "[subscription().subscriptionId]",
-            "resourceGroup": "[parameters('storageAccountRG')]",
-            "dependsOn": [],
-            "properties": {
-                "mode": "Incremental",
-                "template": {
-                    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-                    "contentVersion": "1.0.0.0",
-                    "resources": [
-                        {
-                            "copy": {
-                                "name": "storageAccountLoop",
-                                "count": "[length(parameters('storageAccountNames'))]",
-                                "input": {
-                                    "type": "Microsoft.Storage/storageAccounts/providers/roleAssignments",
-                                    "apiVersion": "2018-09-01-preview",
-                                    "name": "[concat(parameters('storageAccountNames'), [copyIndex('storageAccountLoop')], '/Microsoft.Authorization/', guid(concat(parameters('storageAccountNames'), [copyIndex('storageAccountLoop')],reference(resourceId('Microsoft.Web/sites', 'storagekey-rotation-fnapp'),'2019-08-01', 'Full').identity.principalId)))]",
-                                    "dependsOn": [
-                                    ],
-                                    "properties": {
-                                        "roleDefinitionId": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', '81a9662b-bebf-436f-a333-f67b29880f12')]",
-                                        "principalId": "[reference(resourceId('Microsoft.Web/sites', 'general-storagekey-rotation-fnapp'),'2019-08-01', 'Full').identity.principalId]"
-                                    }
-                                }
-                            }
-                        }
-                    ]
-                }
-            }
-        },
-        {
             "name": "kv-event-subscription-and-grant-access",
             "type": "Microsoft.Resources/deployments",
             "apiVersion": "2019-10-01",
             "subscriptionId": "[subscription().subscriptionId]",
-            "resourceGroup": "[parameters('keyVaultRG')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Web/sites', 'general-storagekey-rotation-fnapp')]",
-                "[concat(resourceId('Microsoft.Web/sites', 'general-storagekey-rotation-fnapp'),'/sourcecontrols/web')]"
             ],
             "properties": {
                 "mode": "Incremental",
@@ -111,62 +46,82 @@
                     "contentVersion": "1.0.0.0",
                     "resources": [
                         {
+                            "type": "Microsoft.KeyVault/vaults/accessPolicies",
+                            "name": "[concat(parameters('keyVaultsForAccessPolicies')[copyIndex()], '/add')]",
+                            "apiVersion": "2019-09-01",
                             "copy": {
-                                "name": "keyVaultAccessPoliciesLoop",
-                                "count": "[length(parameters('keyVaultObjects'))]",
-                                "input": {
-                                    "type": "Microsoft.KeyVault/vaults/accessPolicies",
-                                    "name": "[concat(parameters('keyVaultObjects')[copyIndex('add')].keyVaultName, '/add')]",
-                                    "apiVersion": "2019-09-01",
-                                    "properties": {
-                                        "accessPolicies": [
-                                            {
-                                                "tenantId": "[subscription().tenantId]",
-                                                "objectId": "[reference(resourceId('Microsoft.Web/sites', 'general-storagekey-rotation-fnapp'),'2019-08-01', 'Full').identity.principalId]",
-                                                "permissions": {
-                                                    "secrets": [
-                                                        "Get",
-                                                        "List",
-                                                        "Set"
-                                                    ]
-                                                }
-                                            }
-                                        ]
+                                "name": "kv-access-policy-loop",
+                                "count": "[length(parameters('keyVaultsForAccessPolicies'))]"
+                            },
+                            "properties": {
+                                "accessPolicies": [
+                                    {
+                                        "tenantId": "[subscription().tenantId]",
+                                        "objectId": "[reference(resourceId('Microsoft.Web/sites', 'general-storagekey-rotation-fnapp'),'2019-08-01', 'Full').identity.principalId]",
+                                        "permissions": {
+                                            "secrets": [
+                                                "Get",
+                                                "List",
+                                                "Set"
+                                            ]
+                                        }
                                     }
-                                }
+                                ]
                             }
                         },
                         {
+                            "type": "Microsoft.KeyVault/vaults/providers/eventSubscriptions",
+                            "apiVersion": "2020-01-01-preview",
+                            "name": "[concat(parameters('keyVaultSecretObjects')[copyIndex()].keyVaultName,'/Microsoft.EventGrid/',variables('eventSubscriptionName'), '-', parameters('keyVaultSecretObjects')[copyIndex()].secretName)]",
+                            "location": "[resourceGroup().location]",
                             "copy": {
-                                "name": "keyVaultEventSubscriptionLoop",
-                                "count": "[length(parameters('keyVaultObjects'))]",
-                                "input": {
-                                    "type": "Microsoft.KeyVault/vaults/providers/eventSubscriptions",
-                                    "apiVersion": "2020-01-01-preview",
-                                    "name": "[concat([copyIndex('keyVaultNameLoop')].keyVaultName,'/Microsoft.EventGrid/',variables('eventSubscriptionName'))]",
-                                    "location": "[resourceGroup().location]",
-                                    "dependsOn": [
-                                    ],
+                                "name": "key-vault-subscription-loop",
+                                "count": "[length(parameters('keyVaultSecretObjects'))]"
+                            },
+                            "properties": {
+                                "destination": {
+                                    "endpointType": "AzureFunction",
                                     "properties": {
-                                        "copy": {
-                                            "name": "secretNameFilterLoop",
-                                            "count": "[length(parameters('keyVaultObjects')[copyIndex('keyVaultNameLoop')].secretName)]",
-                                            "input": {
-                                                "destination": {
-                                                    "endpointType": "AzureFunction",
-                                                    "properties": {
-                                                        "maxEventsPerBatch": 1,
-                                                        "preferredBatchSizeInKilobytes": 64,
-                                                        "resourceId": "[concat(resourceId('Microsoft.Web/sites', 'general-storagekey-rotation-fnapp'),'/functions/AKVStorageRotation')]"
-                                                    }
-                                                },
-                                                "filter": {
-                                                    "subjectBeginsWith": "[parameters('keyVaultObjects')[copyIndex('keyVaultNameLoop')].secretName[copyIndex('secretNameFilterLoop')]]",
-                                                    "subjectEndsWith": "[parameters('keyVaultObjects')[copyIndex('keyVaultNameLoop')].secretName[copyIndex('secretNameFilterLoop')]]",
-                                                    "includedEventTypes": ["Microsoft.KeyVault.SecretNearExpiry"]
-                                                }
-                                            }
-                                        }
+                                        "maxEventsPerBatch": 1,
+                                        "preferredBatchSizeInKilobytes": 64,
+                                        "resourceId": "[concat(resourceId('Microsoft.Web/sites', 'general-storagekey-rotation-fnapp'),'/functions/AKVStorageRotation')]"
+                                    }
+                                },
+                                "filter": {
+                                    "subjectBeginsWith": "[parameters('keyVaultSecretObjects')[copyIndex()].secretName]",
+                                    "subjectEndsWith": "[parameters('keyVaultSecretObjects')[copyIndex()].secretName",
+                                    "includedEventTypes": ["Microsoft.KeyVault.SecretNearExpiry"]
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "name": "storage-grant-access",
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2019-10-01",
+            "subscriptionId": "[subscription().subscriptionId]",
+            "dependsOn": [
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "template": {
+                    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "resources": [
+                        {
+                            "type": "Microsoft.Storage/storageAccounts/providers/roleAssignments",
+                            "apiVersion": "2018-09-01-preview",
+                            "name": "[concat(parameters('storageAccountNames')[copyIndex()], '/Microsoft.Authorization/', guid(concat(parameters('storageAccountNames')[copyIndex()], reference(resourceId('Microsoft.Web/sites', 'general-storagekey-rotation-fnapp'),'2019-08-01', 'Full').identity.principalId)))]",
+                            "copy": {
+                                "name": "storage-account-loop",
+                                "count": "[length(parameters('storageAccountNames'))]",
+                                "input": {
+                                    "properties": {
+                                        "roleDefinitionId": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', '81a9662b-bebf-436f-a333-f67b29880f12')]",
+                                        "principalId": "[reference(resourceId('Microsoft.Web/sites', 'general-storagekey-rotation-fnapp'),'2019-08-01', 'Full').identity.principalId]"
                                     }
                                 }
                             }
