@@ -10,7 +10,8 @@ function RegenerateKey($keyId, $providerAddress, $tagType){
     New-AzStorageAccountKey -ResourceGroupName $resourceGroupName -Name $storageAccountName -KeyName $keyId
     if ($tagType -eq "ConnectionString")
     {
-        $newKeyValue = (Get-AzStorageAccount -ResourceGroupName $resourceGroupName -Name $storageAccountName).PrimaryConnectionString
+        $storageAccountKey = (Get-AzStorageAccountKey -ResourceGroupName $resourceGroupName -AccountName $storageAccountName).Value[0]
+        $newKeyValue = "DefaultEndpointsProtocol=https;AccountName=$storageAccountName;AccountKey=$storageAccountKey;EndpointSuffix=core.windows.net"
     }
     else
     {
