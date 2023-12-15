@@ -108,7 +108,7 @@
                         {
                             "type": "Microsoft.KeyVault/vaults/providers/eventSubscriptions",
                             "apiVersion": "2020-01-01-preview",
-                            "name": "[concat(parameters('keyVaultSecretObjects')[copyIndex()].keyVaultName,'/Microsoft.EventGrid/',variables('eventSubscriptionName'), '-', parameters('keyVaultSecretObjects')[copyIndex()].secretName)]",
+                            "name": "[concat(parameters('keyVaultSecretObjects')[copyIndex()].keyVaultName,'/Microsoft.EventGrid/',variables('eventSubscriptionName'), '-', substring(parameters('keyVaultSecretObjects')[copyIndex()].secretName, 0, 10))]",
                             "location": "[resourceGroup().location]",
 
                             "properties": {
